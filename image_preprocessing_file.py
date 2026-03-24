@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import re
 import ast
@@ -5,9 +6,14 @@ from sklearn.preprocessing import MultiLabelBinarizer, MinMaxScaler
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 import pickle
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DATA_DIR = os.environ["DATA_DIR"]
 
 # Load data
-df = pd.read_csv("/content/drive/MyDrive/Extended_Recipes_Dataset/recipes_extended.csv")
+df = pd.read_csv(os.path.join(DATA_DIR, "recipes_extended.csv"))
 
 print(df.head())
 print(df.isnull().sum())
