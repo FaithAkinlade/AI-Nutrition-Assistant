@@ -30,13 +30,23 @@ image_preprocessing_file.py  # Feature engineering and preprocessing
    cd AI-Nutrition-Assistant
    ```
 
-2. **Install dependencies**
+2. **Create and activate a virtual environment** (recommended)
 
    ```bash
-   pip install pandas scikit-learn fastapi uvicorn python-dotenv
+   python -m venv .venv
    ```
 
-3. **Configure environment variables**
+   - Windows (PowerShell): `.venv\Scripts\Activate.ps1`
+   - Windows (cmd): `.venv\Scripts\activate.bat`
+   - macOS/Linux: `source .venv/bin/activate`
+
+3. **Install dependencies**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configure environment variables**
 
    Copy the example env file and fill in your paths:
 
@@ -51,7 +61,7 @@ image_preprocessing_file.py  # Feature engineering and preprocessing
    DATA_DIR=C:\Users\yourname\path\to\AI_nutritionist\data
    ```
 
-4. **Add your dataset**
+5. **Add your dataset**
 
    Place `recipes_extended.csv` in your `DATA_DIR` folder.
 
@@ -122,6 +132,12 @@ http://127.0.0.1:8000/recommend?ingredients=chicken,garlic,onion&preference=vega
     }
   ]
 }
+```
+
+## Running Tests
+
+```bash
+python -m pytest AI_nutritionist/tests/ -v
 ```
 
 ## API Endpoints
