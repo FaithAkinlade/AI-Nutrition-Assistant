@@ -13,6 +13,8 @@ AI_nutritionist/
     recommend.py      # Generates recipe recommendations
   backend/
     app.py            # FastAPI server
+  frontend/
+    streamlit_app.py  # Streamlit web interface
 image_preprocessing_file.py  # Feature engineering and preprocessing
 ```
 
@@ -95,7 +97,17 @@ python AI_nutritionist/model/recommend.py
 
 This runs a sample query (`chicken, garlic, butter` with `gluten_free` preference) and prints results.
 
-### 4. Start the API server
+### 4. Launch the Streamlit interface
+
+> **Important:** Streamlit apps must be launched with the `streamlit run` command, **not** with `python`. Running with `python` directly will produce `missing ScriptRunContext` warnings and the app will not work.
+
+```bash
+streamlit run AI_nutritionist/frontend/streamlit_app.py
+```
+
+This starts a local server and opens the web UI in your browser (default `http://localhost:8501`), where you can enter ingredients, select a dietary preference, and get recipe recommendations.
+
+### 5. Start the API server (alternative)
 
 ```bash
 cd AI_nutritionist/backend
@@ -104,7 +116,7 @@ uvicorn app:app --reload
 
 The server starts at `http://127.0.0.1:8000`.
 
-### 5. Get recommendations
+### 6. Get recommendations (API)
 
 Open your browser or use curl:
 
