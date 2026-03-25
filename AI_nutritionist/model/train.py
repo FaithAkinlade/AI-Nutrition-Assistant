@@ -13,7 +13,7 @@ DATA_DIR = os.environ["DATA_DIR"]
 # -------------------------------
 # Step 1: Load cleaned CSV
 # -------------------------------
-csv_path = os.path.join(DATA_DIR, "recipes_cleaned.csv")
+csv_path = os.path.join(DATA_DIR, "recipes_cleaned_no_dups.csv")
 
 if not os.path.exists(csv_path):
     raise FileNotFoundError(f"{csv_path} does not exist. Run preprocess.py first.")
