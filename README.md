@@ -16,6 +16,7 @@ AI_nutritionist/
   frontend/
     streamlit_app.py  # Streamlit web interface
 image_preprocessing_file.py  # Feature engineering and preprocessing
+remove_duplicates.py         # Removes duplicate rows from recipes_cleaned.csv
 ```
 
 ## Prerequisites
@@ -77,6 +78,14 @@ Cleans the raw CSV and produces `recipes_cleaned.csv`:
 
 ```bash
 python AI_nutritionist/model/preprocess.py
+```
+
+### 1b. Remove duplicates from cleaned data
+
+Removes duplicate rows from `recipes_cleaned.csv` and saves the result as `recipes_cleaned_no_dups.csv` in your `DATA_DIR`:
+
+```bash
+python remove_duplicates.py
 ```
 
 ### 2. Train the model
