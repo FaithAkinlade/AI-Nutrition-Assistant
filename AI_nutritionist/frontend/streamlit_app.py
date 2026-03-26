@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 import streamlit as st
 from recommend import recommend_recipes
 
-st.set_page_config(page_title="AI Nutrition Assistant", page_icon="\U0001F34E", layout="wide")
+st.set_page_config(page_title="S.N.A.C.C.", page_icon="\U0001F34E", layout="wide")
 
 # --- Session state ---
 if "results" not in st.session_state:
@@ -64,8 +64,9 @@ if not has_results:
     col_left, col_center, col_right = st.columns([1, 2, 1])
     with col_center:
         st.markdown(
-            "<h1 style='text-align:center; color:#5B3A0A; font-family:Georgia,serif;'>"
-            "AI Nutrition Assistant</h1>",
+            "<div style='text-align:center; color:#5B3A0A; font-family:Georgia,serif; "
+            "font-size:2rem; font-weight:bold;'>"
+            "Smart Nutrition Assistant Companion & Curator (S.N.A.C.C.)</div>",
             unsafe_allow_html=True
         )
         st.markdown(
@@ -114,8 +115,9 @@ else:
 
     # --- Compact input bar at top ---
     st.markdown(
-        "<h3 style='text-align:center; color:#5B3A0A; font-family:Georgia,serif; margin-bottom:0;'>"
-        "\U0001F34E AI Nutrition Assistant</h3>",
+        "<div style='text-align:center; color:#5B3A0A; font-family:Georgia,serif; "
+        "margin-bottom:0; font-size:2rem; font-weight:bold;'>"
+        "S.N.A.C.C.</div>",
         unsafe_allow_html=True
     )
 
