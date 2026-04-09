@@ -47,7 +47,10 @@ def preprocess():
         'is_vegetarian',
         'is_gluten_free',
         'is_dairy_free',
-        'dietary_profile'
+        'dietary_profile',
+        'tastes',
+        'primary_taste',
+        'secondary_taste'
     ]
 
     # Keep only available columns
