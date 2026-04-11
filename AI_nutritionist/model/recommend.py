@@ -44,32 +44,39 @@ def filter_by_preference(df, preference):
 # -------------------------------
 # Step 3: Recommendation function
 # -------------------------------
-def recommend_recipes(ingredients_list, preference=None, top_n=5):
+def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5):
+    # Take up to the first 10 ingredients to avoid overly long queries
+    query_parts = ingredients_list[:10]
 
-    # Convert list → string
-    query = " ".join(ingredients_list[:10])
+    # If user selected tastes, add them to the query
+    # Multiply by 3 to increase their importance in similarity scoring
+    if tastes:
+        query_parts += tastes * 3  # boost taste importance
 
-    # Apply dietary filter
+    # Convert list of words into a single string for TF-IDF processing
+    query = " ".join(query_parts)
+
+    # Apply dietary filtering (vegan, gluten-free, etc.)
     filtered_df = filter_by_preference(df, preference)
 
+    # If no recipes match the dietary filter, return empty list
     if len(filtered_df) == 0:
         return []
 
-    # Transform query
+    # Convert the user query into a TF-IDF vector
     query_vec = vectorizer.transform([query])
 
-    # Transform filtered data
+    # Convert all candidate recipes into TF-IDF vectors
     filtered_matrix = vectorizer.transform(filtered_df['combined_text'])
 
-    # Compute similarity
+    # Compute cosine similarity between query and all recipes
     similarities = cosine_similarity(query_vec, filtered_matrix)
 
-    # Get top matches
+    # Get indices of top N most similar recipes (highest scores first)
     top_indices = similarities.argsort()[0][-top_n:][::-1]
 
-    results = filtered_df.iloc[top_indices]
-
-    return results
+    # Return the top matching recipes from the filtered dataframe
+    return filtered_df.iloc[top_indices]
 
 
 # -------------------------------
