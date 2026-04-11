@@ -2,10 +2,13 @@ import sys
 import os
 import ast
 
-# Add model folder to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "model")))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, ".."))
+model_path = os.path.join(project_root, "model")
+sys.path.insert(0, model_path)
 
 import streamlit as st
+# Now it should find recommend.py inside the model folder
 from recommend import recommend_recipes
 
 st.set_page_config(page_title="S.N.A.C.C.", page_icon="\U0001F34E", layout="wide")
