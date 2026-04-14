@@ -83,22 +83,34 @@ if not has_results:
 
         sub_col1, sub_col2 = st.columns(2)
         with sub_col1:
-            preference = st.selectbox(
-                "Dietary preference",
-                options=["None", "vegan", "vegetarian", "gluten_free", "dairy_free"],
+            preferences = st.multiselect(
+                "Dietary preferences",
+                options=["vegan", "vegetarian", "gluten_free", "dairy_free"],
+                default=[],
                 key="pref_center"
             )
         with sub_col2:
             top_n = st.slider("Number of recipes", min_value=1, max_value=20, value=5, key="topn_center")
+
+        time_col1, time_col2 = st.columns(2)
+        with time_col1:
+            max_prep = st.number_input("Max prep time (min)", min_value=0, value=0, step=5, key="prep_center",
+                                       help="0 = no limit")
+        with time_col2:
+            max_cook = st.number_input("Max cook time (min)", min_value=0, value=0, step=5, key="cook_center",
+                                       help="0 = no limit")
 
         if st.button("Get Recommendations", type="primary", use_container_width=True):
             if not ingredients_input.strip():
                 st.warning("Please enter at least one ingredient.")
             else:
                 ingredients_list = [i.strip() for i in ingredients_input.split(",") if i.strip()]
-                pref = None if preference == "None" else preference
+                pref = preferences if preferences else None
+                prep = max_prep if max_prep > 0 else None
+                cook = max_cook if max_cook > 0 else None
                 with st.spinner("Finding recipes..."):
-                    results = recommend_recipes(ingredients_list, pref, top_n)
+                    results = recommend_recipes(ingredients_list, pref, top_n,
+                                                max_prep_time=prep, max_cook_time=cook)
                 if isinstance(results, list) and len(results) == 0:
                     st.info("No recipes found. Try different ingredients or preferences.")
                 else:
@@ -106,7 +118,7 @@ if not has_results:
                     st.session_state.searched = True
                     st.session_state.page = 0
                     st.session_state.last_ingredients = ingredients_input
-                    st.session_state.last_pref = preference
+                    st.session_state.last_pref = preferences
                     st.session_state.last_topn = top_n
                     st.rerun()
 
@@ -131,12 +143,10 @@ else:
             label_visibility="collapsed"
         )
     with top_col2:
-        preference = st.selectbox(
-            "Dietary preference",
-            options=["None", "vegan", "vegetarian", "gluten_free", "dairy_free"],
-            index=["None", "vegan", "vegetarian", "gluten_free", "dairy_free"].index(
-                st.session_state.get("last_pref", "None")
-            ),
+        preferences = st.multiselect(
+            "Dietary preferences",
+            options=["vegan", "vegetarian", "gluten_free", "dairy_free"],
+            default=st.session_state.get("last_pref", []),
             key="pref_top",
             label_visibility="collapsed"
         )
@@ -153,7 +163,7 @@ else:
                 st.warning("Please enter at least one ingredient.")
             else:
                 ingredients_list = [i.strip() for i in ingredients_input.split(",") if i.strip()]
-                pref = None if preference == "None" else preference
+                pref = preferences if preferences else None
                 with st.spinner("Finding recipes..."):
                     results = recommend_recipes(ingredients_list, pref, top_n)
                 if isinstance(results, list) and len(results) == 0:
@@ -164,7 +174,7 @@ else:
                     st.session_state.results = results
                     st.session_state.page = 0
                     st.session_state.last_ingredients = ingredients_input
-                    st.session_state.last_pref = preference
+                    st.session_state.last_pref = preferences
                     st.session_state.last_topn = top_n
                     st.rerun()
 
@@ -194,6 +204,15 @@ else:
         unsafe_allow_html=True
     )
 
+    # Helper to safely get a value from a row
+    def _safe(row, col, default=""):
+        if col in row.index:
+            val = row[col]
+            if val is None or (isinstance(val, float) and str(val) == "nan"):
+                return default
+            return val
+        return default
+
     # Helper to parse recipe data into HTML
     def parse_recipe(idx):
         row = results.iloc[idx]
@@ -216,10 +235,44 @@ else:
                 dirs = f"<li>{raw_d}</li>"
         except (ValueError, SyntaxError):
             dirs = f"<li>{raw_d}</li>"
-        return title, ing, dirs
+
+        # Build metadata badges
+        meta_parts = []
+        prep = _safe(row, "est_prep_time_min", "")
+        cook = _safe(row, "est_cook_time_min", "")
+        difficulty = _safe(row, "difficulty", "")
+        cuisine = _safe(row, "cuisine_path", "")
+        taste = _safe(row, "primary_taste", "")
+        dietary = _safe(row, "dietary_profile", "")
+
+        if prep:
+            meta_parts.append(f"Prep: {int(prep)} min")
+        if cook:
+            meta_parts.append(f"Cook: {int(cook)} min")
+        if difficulty:
+            meta_parts.append(f"Difficulty: {difficulty}")
+        if cuisine:
+            meta_parts.append(str(cuisine))
+        if taste:
+            meta_parts.append(str(taste))
+
+        meta_html = ""
+        if meta_parts:
+            badges = " &bull; ".join(meta_parts)
+            meta_html = (
+                f'<p style="text-align:center; color:#6B4F12; font-size:0.8rem; '
+                f'margin:0 0 0.5rem 0; font-style:italic;">{badges}</p>'
+            )
+        if dietary:
+            meta_html += (
+                f'<p style="text-align:center; font-size:0.75rem; color:#4a6e3a; '
+                f'margin:0 0 0.5rem 0;">{dietary}</p>'
+            )
+
+        return title, ing, dirs, meta_html
 
     # Build both pages HTML, then render together in one markdown block to eliminate gap
-    def build_page_html(title, ing_html, dir_html, page_num, side):
+    def build_page_html(title, ing_html, dir_html, page_num, side, meta_html=""):
         if side == "left":
             border_radius = "12px 0 0 12px"
             spine = (
@@ -252,8 +305,9 @@ else:
             f'{spine}'
             f'<h2 style="text-align:center; color:#5B3A0A;'
             f'border-bottom:2px solid #8B6914;'
-            f'padding-bottom:0.5rem; margin-bottom:1rem;'
+            f'padding-bottom:0.5rem; margin-bottom:0.5rem;'
             f'font-style:italic; font-size:1.4rem;">{title}</h2>'
+            f'{meta_html}'
             f'<h4 style="color:#6B4F12; border-bottom:1px dashed #a08050; padding-bottom:4px;">Ingredients</h4>'
             f'<ul style="color:#4a3520; line-height:1.7; padding-left:1.2rem; list-style-type:disc; font-size:0.9rem;">{ing_html}</ul>'
             f'<h4 style="color:#6B4F12; border-bottom:1px dashed #a08050; padding-bottom:4px; margin-top:1rem;">Instructions</h4>'
@@ -284,14 +338,14 @@ else:
         )
 
     # --- Navigation arrows at top of book ---
-    l_title, l_ing, l_dir = parse_recipe(left_idx)
+    l_title, l_ing, l_dir, l_meta = parse_recipe(left_idx)
     if right_idx < total_recipes:
-        r_title, r_ing, r_dir = parse_recipe(right_idx)
-        right_page = build_page_html(r_title, r_ing, r_dir, right_idx + 1, "right")
+        r_title, r_ing, r_dir, r_meta = parse_recipe(right_idx)
+        right_page = build_page_html(r_title, r_ing, r_dir, right_idx + 1, "right", r_meta)
     else:
         right_page = build_empty_page_html()
 
-    left_page = build_page_html(l_title, l_ing, l_dir, left_idx + 1, "left")
+    left_page = build_page_html(l_title, l_ing, l_dir, left_idx + 1, "left", l_meta)
 
     # Navigation row
     arrow_l, arrow_spacer, arrow_r = st.columns([1, 6, 1])

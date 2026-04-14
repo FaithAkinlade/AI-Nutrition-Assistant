@@ -84,6 +84,33 @@ def test_unknown_preference_returns_unfiltered():
     assert "recipes" in response.json()
 
 
+def test_multi_preference_filter():
+    response = client.get("/recommend", params={
+        "ingredients": "rice,tomato",
+        "preference": "vegan,gluten_free"
+    })
+    assert response.status_code == 200
+    assert "recipes" in response.json()
+
+
+def test_max_prep_time_filter():
+    response = client.get("/recommend", params={
+        "ingredients": "chicken,garlic",
+        "max_prep_time": 30
+    })
+    assert response.status_code == 200
+    assert "recipes" in response.json()
+
+
+def test_max_cook_time_filter():
+    response = client.get("/recommend", params={
+        "ingredients": "pasta,tomato",
+        "max_cook_time": 45
+    })
+    assert response.status_code == 200
+    assert "recipes" in response.json()
+
+
 # -----------------------------------------------
 # Response shape validation
 # -----------------------------------------------
@@ -96,6 +123,9 @@ def test_response_contains_expected_fields():
         assert "recipe_title" in recipe
         assert "ingredients" in recipe
         assert "directions" in recipe
+        assert "cuisine" in recipe
+        assert "difficulty" in recipe
+        assert "dietary_profile" in recipe
 
 
 # -----------------------------------------------
