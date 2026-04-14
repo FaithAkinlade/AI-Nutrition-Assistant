@@ -2,55 +2,81 @@
 
 import os
 import pickle
+import functools
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# -------------------------------
-# Step 1: Load saved files
-# -------------------------------
 MODEL_DIR = os.environ["MODEL_DIR"]
 
-model_path = os.path.join(MODEL_DIR, 'nn_model.pkl')   # not used but kept
-vectorizer_path = os.path.join(MODEL_DIR, 'tfidf_vectorizer.pkl')
-data_path = os.path.join(MODEL_DIR, 'recipes.pkl')
 
-with open(vectorizer_path, 'rb') as f:
-    vectorizer = pickle.load(f)
+# -------------------------------
+# Step 1: Load saved files (cached)
+# -------------------------------
+@functools.lru_cache(maxsize=1)
+def _load_model():
+    vectorizer_path = os.path.join(MODEL_DIR, 'tfidf_vectorizer.pkl')
+    data_path = os.path.join(MODEL_DIR, 'recipes.pkl')
 
-df = pd.read_pickle(data_path)
+    with open(vectorizer_path, 'rb') as f:
+        vectorizer = pickle.load(f)
 
-print("✅ Vectorizer and data loaded!")
+    df = pd.read_pickle(data_path)
+
+    print("✅ Vectorizer and data loaded!")
+    return vectorizer, df
 
 
 # -------------------------------
 # Step 2: Dietary filtering
 # -------------------------------
-def filter_by_preference(df, preference):
-    if preference == "vegan":
-        return df[df['is_vegan'] == 1]
-    elif preference == "vegetarian":
-        return df[df['is_vegetarian'] == 1]
-    elif preference == "gluten_free":
-        return df[df['is_gluten_free'] == 1]
-    elif preference == "dairy_free":
-        return df[df['is_dairy_free'] == 1]
-    else:
+DIETARY_COLUMNS = {
+    "vegan": "is_vegan",
+    "vegetarian": "is_vegetarian",
+    "gluten_free": "is_gluten_free",
+    "dairy_free": "is_dairy_free",
+}
+
+
+def filter_by_preferences(df, preferences):
+    """Filter by one or more dietary preferences."""
+    if not preferences:
         return df
+    for pref in preferences:
+        col = DIETARY_COLUMNS.get(pref)
+        if col and col in df.columns:
+            df = df[df[col] == 1]
+    return df
 
 
 # -------------------------------
 # Step 3: Recommendation function
 # -------------------------------
-def recommend_recipes(ingredients_list, preference=None, top_n=5):
+def recommend_recipes(ingredients_list, preference=None, top_n=5,
+                      max_prep_time=None, max_cook_time=None):
+    vectorizer, df = _load_model()
 
     # Convert list → string
     query = " ".join(ingredients_list[:10])
 
-    # Apply dietary filter
-    filtered_df = filter_by_preference(df, preference)
+    # Normalize preference to a list for multi-filter support
+    if isinstance(preference, str):
+        preferences = [p.strip() for p in preference.split(",") if p.strip()]
+    elif isinstance(preference, list):
+        preferences = preference
+    else:
+        preferences = []
+
+    # Apply dietary filters
+    filtered_df = filter_by_preferences(df, preferences)
+
+    # Apply time-based filters
+    if max_prep_time is not None and 'est_prep_time_min' in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df['est_prep_time_min'] <= max_prep_time]
+    if max_cook_time is not None and 'est_cook_time_min' in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df['est_cook_time_min'] <= max_cook_time]
 
     if len(filtered_df) == 0:
         return []
