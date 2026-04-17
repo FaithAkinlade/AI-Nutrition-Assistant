@@ -44,32 +44,41 @@ def filter_by_preference(df, preference):
 # -------------------------------
 # Step 3: Recommendation function
 # -------------------------------
-def recommend_recipes(ingredients_list, preference=None, top_n=5):
+def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5):
+    # 1. Point to the existing global dataframe (memory efficient)
+    filtered_df = df 
 
-    # Convert list → string
+    # 2. Apply Dietary Filter
+    if preference and preference != "None":
+        filtered_df = filter_by_preference(filtered_df, preference)
+
+    # 3. Apply Taste Filter (Directly on the 'tastes' column)
+    if tastes:
+        for taste in tastes:
+            filtered_df = filtered_df[filtered_df['tastes'].str.contains(taste, case=False, na=False)]
+
+    # 4. Return early if no matches
+    if filtered_df.empty:
+        return []
+    
+    # 5. Prepare the user's search query
     query = " ".join(ingredients_list[:10])
 
-    # Apply dietary filter
-    filtered_df = filter_by_preference(df, preference)
-
-    if len(filtered_df) == 0:
-        return []
-
-    # Transform query
+    # 6. Convert the user query into a TF-IDF vector
     query_vec = vectorizer.transform([query])
 
-    # Transform filtered data
+    # 7. Convert all candidate recipes into TF-IDF vectors
     filtered_matrix = vectorizer.transform(filtered_df['combined_text'])
 
-    # Compute similarity
-    similarities = cosine_similarity(query_vec, filtered_matrix)
+    # 8. Compute cosine similarity between query and all recipes
+    similarities = cosine_similarity(query_vec, filtered_matrix).flatten()
 
-    # Get top matches
-    top_indices = similarities.argsort()[0][-top_n:][::-1]
+    # 9. Get indices of top N most similar recipes (highest scores first)
+    actual_top_n = min(len(filtered_df), top_n)
+    top_indices = similarities.argsort()[-actual_top_n:][::-1]
 
-    results = filtered_df.iloc[top_indices]
-
-    return results
+    # Return the top matching recipes from the filtered dataframe
+    return filtered_df.iloc[top_indices]
 
 
 # -------------------------------
