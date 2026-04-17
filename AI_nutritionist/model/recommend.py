@@ -45,35 +45,37 @@ def filter_by_preference(df, preference):
 # Step 3: Recommendation function
 # -------------------------------
 def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5):
-    # Take up to the first 10 ingredients to avoid overly long queries
-    query_parts = ingredients_list[:10]
+    # 1. Point to the existing global dataframe (memory efficient)
+    filtered_df = df 
 
-    # If user selected tastes, add them to the query
-    # Multiply by 3 to increase their importance in similarity scoring
+    # 2. Apply Dietary Filter
+    if preference and preference != "None":
+        filtered_df = filter_by_preference(filtered_df, preference)
+
+    # 3. Apply Taste Filter (Directly on the 'tastes' column)
     if tastes:
-        query_parts += tastes * 3  # boost taste importance
+        for taste in tastes:
+            filtered_df = filtered_df[filtered_df['tastes'].str.contains(taste, case=False, na=False)]
 
-    # Convert list of words into a single string for TF-IDF processing
-    query = " ".join(query_parts)
-
-    # Apply dietary filtering (vegan, gluten-free, etc.)
-    filtered_df = filter_by_preference(df, preference)
-
-    # If no recipes match the dietary filter, return empty list
-    if len(filtered_df) == 0:
+    # 4. Return early if no matches
+    if filtered_df.empty:
         return []
+    
+    # 5. Prepare the user's search query
+    query = " ".join(ingredients_list[:10])
 
-    # Convert the user query into a TF-IDF vector
+    # 6. Convert the user query into a TF-IDF vector
     query_vec = vectorizer.transform([query])
 
-    # Convert all candidate recipes into TF-IDF vectors
+    # 7. Convert all candidate recipes into TF-IDF vectors
     filtered_matrix = vectorizer.transform(filtered_df['combined_text'])
 
-    # Compute cosine similarity between query and all recipes
-    similarities = cosine_similarity(query_vec, filtered_matrix)
+    # 8. Compute cosine similarity between query and all recipes
+    similarities = cosine_similarity(query_vec, filtered_matrix).flatten()
 
-    # Get indices of top N most similar recipes (highest scores first)
-    top_indices = similarities.argsort()[0][-top_n:][::-1]
+    # 9. Get indices of top N most similar recipes (highest scores first)
+    actual_top_n = min(len(filtered_df), top_n)
+    top_indices = similarities.argsort()[-actual_top_n:][::-1]
 
     # Return the top matching recipes from the filtered dataframe
     return filtered_df.iloc[top_indices]
