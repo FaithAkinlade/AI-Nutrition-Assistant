@@ -60,15 +60,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- NEW: HEADER SECTION  ---
+header_container = st.container()
+with header_container:
+    st.markdown("<div style='text-align:center; color:#5B3A0A; font-family:Georgia,serif; font-size:2.5rem; font-weight:bold; margin-top: 10px;'>S.N.A.C.C.</div>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#6B4F12; font-size:1.1rem; margin-bottom: 20px;'>Smart Nutrition Assistant Companion & Curator</p>", unsafe_allow_html=True)
+
 if not has_results:
     # ---- CENTERED INPUT VIEW ----
-    st.markdown("<div style='height: 18vh;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 5vh;'></div>", unsafe_allow_html=True)
     col_left, col_center, col_right = st.columns([1, 2, 1])
     
     with col_center:
-        st.markdown("<div style='text-align:center; color:#5B3A0A; font-family:Georgia,serif; font-size:2rem; font-weight:bold;'>S.N.A.C.C.</div>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center; color:#6B4F12; font-size:1.1rem;'>Smart Nutrition Assistant Companion & Curator</p>", unsafe_allow_html=True)
-
         ingredients_input = st.text_input("Ingredients (comma-separated)", placeholder="e.g. chicken, garlic, onion", key="ingredients_center")
 
         sub_col1, sub_col2, sub_col3 = st.columns(3)
