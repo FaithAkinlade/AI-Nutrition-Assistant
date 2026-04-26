@@ -189,9 +189,13 @@ else:
         matched = int(row["matched_count"]) if "matched_count" in row else 0
         total = int(row["total_user_ingredients"]) if "total_user_ingredients" in row else 0
         badge = f"Uses {matched} of your {total} ingredients" if total else ""
-        return title, fmt(row["ingredients"]), fmt(row["directions"]), badge
+        missing = row["missing_ingredients"] if "missing_ingredients" in row else []
+        if not isinstance(missing, list):
+            missing = []
+        missing_html = "".join(f"<li>{m}</li>" for m in missing)
+        return title, fmt(row["ingredients"]), fmt(row["directions"]), badge, missing_html
 
-    def build_page_html(title, ing_html, dir_html, page_num, side, badge=""):
+    def build_page_html(title, ing_html, dir_html, page_num, side, badge="", missing_html=""):
         radius = "12px 0 0 12px" if side == "left" else "0 12px 12px 0"
         border = "border-right: 1px solid #8B6914;" if side == "left" else ""
         grad = "to left" if side == "left" else "to right"
@@ -201,19 +205,26 @@ else:
             if badge else ""
         )
         badge_wrap = f'<div style="text-align:center;">{badge_html}</div>' if badge else ""
+        missing_block = (
+            f'<div style="background:#fff8e7; border:1px dashed #8B6914; border-radius:8px; padding:0.5rem 1rem; margin: 0.5rem 0 1rem 0;">'
+            f'<h4 style="color:#8B0000; margin:0 0 0.25rem 0;">You\'d need to buy</h4>'
+            f'<ul style="margin:0; padding-left:1.25rem; color:#5B3A0A;">{missing_html}</ul></div>'
+            if missing_html else ""
+        )
         return f'''<div style="flex:1; background: linear-gradient(135deg, #d2b48c 0%, #f5e6c8 50%, #d2b48c 100%); border: 3px solid #8B6914; {border} border-radius: {radius}; padding: 2rem; position: relative; min-height: 600px; overflow: auto; font-family: Georgia, serif;">
             {spine}<h2 style="text-align:center; color:#5B3A0A; border-bottom:2px solid #8B6914;">{title}</h2>
             {badge_wrap}
+            {missing_block}
             <h4 style="color:#6B4F12;">Ingredients</h4><ul>{ing_html}</ul>
             <h4 style="color:#6B4F12;">Instructions</h4><ol>{dir_html}</ol>
             <p style="text-align:center; color:#8B6914; font-style:italic;">— {page_num} —</p></div>'''
 
-    l_title, l_ing, l_dir, l_badge = parse_recipe(left_idx)
-    left_page = build_page_html(l_title, l_ing, l_dir, left_idx + 1, "left", l_badge)
+    l_title, l_ing, l_dir, l_badge, l_missing = parse_recipe(left_idx)
+    left_page = build_page_html(l_title, l_ing, l_dir, left_idx + 1, "left", l_badge, l_missing)
 
     if right_idx < total_recipes:
-        r_title, r_ing, r_dir, r_badge = parse_recipe(right_idx)
-        right_page = build_page_html(r_title, r_ing, r_dir, right_idx + 1, "right", r_badge)
+        r_title, r_ing, r_dir, r_badge, r_missing = parse_recipe(right_idx)
+        right_page = build_page_html(r_title, r_ing, r_dir, right_idx + 1, "right", r_badge, r_missing)
     else:
         right_page = '<div style="flex:1; background:#e6d2a8; border:3px solid #8B6914; border-radius:0 12px 12px 0; min-height:600px; display:flex; align-items:center; justify-content:center;">End of recipes</div>'
 

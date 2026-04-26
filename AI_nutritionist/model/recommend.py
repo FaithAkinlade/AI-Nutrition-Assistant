@@ -51,18 +51,33 @@ def filter_by_preference(df, preference):
 COVERAGE_WEIGHT = 0.5
 
 
-def _parse_ingredient_list(raw):
+def _parse_raw_ingredients(raw):
+    """Parse a stringified ingredient list, preserving original case for display."""
     try:
         parsed = ast.literal_eval(raw) if isinstance(raw, str) else raw
     except (ValueError, SyntaxError):
-        return [str(raw).lower()] if raw else []
+        return [str(raw)] if raw else []
     if isinstance(parsed, list):
-        return [str(x).lower() for x in parsed]
-    return [str(parsed).lower()]
+        return [str(x) for x in parsed]
+    return [str(parsed)]
+
+
+def _parse_ingredient_list(raw):
+    return [s.lower() for s in _parse_raw_ingredients(raw)]
 
 
 def _matched_count(user_ingredients_lower, recipe_blob):
     return sum(1 for ing in user_ingredients_lower if ing and ing in recipe_blob)
+
+
+def _missing_ingredients(user_ingredients_lower, raw_ingredients):
+    """Recipe items that don't match any of the user's ingredients (display strings)."""
+    items = _parse_raw_ingredients(raw_ingredients)
+    user_ings = [u for u in user_ingredients_lower if u]
+    return [
+        item for item in items
+        if not any(u in item.lower() for u in user_ings)
+    ]
 
 
 # -------------------------------
@@ -124,6 +139,9 @@ def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5):
     results['matched_count'] = matched_counts[top_indices]
     results['total_user_ingredients'] = total_user
     results['coverage'] = coverage[top_indices]
+    results['missing_ingredients'] = results['ingredients'].apply(
+        lambda r: _missing_ingredients(user_ings_lower, r)
+    )
     return results
 
 
@@ -144,7 +162,10 @@ if __name__ == "__main__":
         for i, (_, row) in enumerate(results.iterrows(), 1):
             matched = int(row.get('matched_count', 0))
             total = int(row.get('total_user_ingredients', len(user_ingredients)))
+            missing = row.get('missing_ingredients', [])
             print(f"{i}. {row['recipe_title']}  (uses {matched}/{total} of your ingredients)")
             print(f"Ingredients: {row['ingredients']}")
+            if missing:
+                print(f"You'd need: {', '.join(missing)}")
             print(f"Steps: {row['directions']}")
             print("-" * 50)
