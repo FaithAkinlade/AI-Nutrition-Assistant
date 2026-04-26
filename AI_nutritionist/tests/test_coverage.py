@@ -128,3 +128,23 @@ def test_recommend_empty_ingredients_yields_zero_coverage(recommend_module):
 def test_recommend_dietary_filter_still_applies(recommend_module):
     out = recommend_module.recommend_recipes(["rice"], preference="vegan", top_n=4)
     assert all(t == "Plain Rice" for t in out["recipe_title"])
+
+
+def test_missing_ingredients_excludes_user_matches(recommend_module):
+    out = recommend_module.recommend_recipes(["chicken", "garlic", "butter"], top_n=4)
+    assert "missing_ingredients" in out.columns
+    pasta_row = out[out["recipe_title"] == "Chicken Garlic Butter Pasta"].iloc[0]
+    # User has 3 of 4 recipe ingredients; only "pasta" should be in missing.
+    assert pasta_row["missing_ingredients"] == ["pasta"]
+
+
+def test_missing_ingredients_lists_all_when_no_match(recommend_module):
+    out = recommend_module.recommend_recipes(["chicken", "garlic", "butter"], top_n=4)
+    rice_row = out[out["recipe_title"] == "Plain Rice"].iloc[0]
+    assert sorted(rice_row["missing_ingredients"]) == ["rice", "salt", "water"]
+
+
+def test_missing_ingredients_helper_preserves_case(recommend_module):
+    raw = "['Chicken Breast', 'Olive Oil', 'Salt']"
+    missing = recommend_module._missing_ingredients(["chicken"], raw)
+    assert missing == ["Olive Oil", "Salt"]
