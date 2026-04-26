@@ -186,25 +186,34 @@ else:
                 p = ast.literal_eval(data)
                 return "".join(f"<li>{x}</li>" for x in p) if isinstance(p, list) else f"<li>{data}</li>"
             except: return f"<li>{data}</li>"
-        return title, fmt(row["ingredients"]), fmt(row["directions"])
+        matched = int(row["matched_count"]) if "matched_count" in row else 0
+        total = int(row["total_user_ingredients"]) if "total_user_ingredients" in row else 0
+        badge = f"Uses {matched} of your {total} ingredients" if total else ""
+        return title, fmt(row["ingredients"]), fmt(row["directions"]), badge
 
-    def build_page_html(title, ing_html, dir_html, page_num, side):
+    def build_page_html(title, ing_html, dir_html, page_num, side, badge=""):
         radius = "12px 0 0 12px" if side == "left" else "0 12px 12px 0"
         border = "border-right: 1px solid #8B6914;" if side == "left" else ""
         grad = "to left" if side == "left" else "to right"
         spine = f'<div style="position:absolute; {"right" if side=="left" else "left"}:0; top:0; bottom:0; width:18px; background:linear-gradient({grad}, #8B6914, #b8956a, transparent);"></div>'
+        badge_html = (
+            f'<div style="text-align:center; margin: 0 auto 0.75rem auto; display:inline-block; background:#6B4F12; color:#f5e6c8; padding:4px 12px; border-radius:999px; font-size:0.85rem; font-weight:bold;">{badge}</div>'
+            if badge else ""
+        )
+        badge_wrap = f'<div style="text-align:center;">{badge_html}</div>' if badge else ""
         return f'''<div style="flex:1; background: linear-gradient(135deg, #d2b48c 0%, #f5e6c8 50%, #d2b48c 100%); border: 3px solid #8B6914; {border} border-radius: {radius}; padding: 2rem; position: relative; min-height: 600px; overflow: auto; font-family: Georgia, serif;">
             {spine}<h2 style="text-align:center; color:#5B3A0A; border-bottom:2px solid #8B6914;">{title}</h2>
+            {badge_wrap}
             <h4 style="color:#6B4F12;">Ingredients</h4><ul>{ing_html}</ul>
             <h4 style="color:#6B4F12;">Instructions</h4><ol>{dir_html}</ol>
             <p style="text-align:center; color:#8B6914; font-style:italic;">— {page_num} —</p></div>'''
 
-    l_title, l_ing, l_dir = parse_recipe(left_idx)
-    left_page = build_page_html(l_title, l_ing, l_dir, left_idx + 1, "left")
-    
+    l_title, l_ing, l_dir, l_badge = parse_recipe(left_idx)
+    left_page = build_page_html(l_title, l_ing, l_dir, left_idx + 1, "left", l_badge)
+
     if right_idx < total_recipes:
-        r_title, r_ing, r_dir = parse_recipe(right_idx)
-        right_page = build_page_html(r_title, r_ing, r_dir, right_idx + 1, "right")
+        r_title, r_ing, r_dir, r_badge = parse_recipe(right_idx)
+        right_page = build_page_html(r_title, r_ing, r_dir, right_idx + 1, "right", r_badge)
     else:
         right_page = '<div style="flex:1; background:#e6d2a8; border:3px solid #8B6914; border-radius:0 12px 12px 0; min-height:600px; display:flex; align-items:center; justify-content:center;">End of recipes</div>'
 

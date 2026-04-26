@@ -1,7 +1,9 @@
 # recommend.py
 
+import ast
 import os
 import pickle
+import numpy as np
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
@@ -42,11 +44,33 @@ def filter_by_preference(df, preference):
 
 
 # -------------------------------
-# Step 3: Recommendation function
+# Step 3: Use-it-up coverage scoring
+# -------------------------------
+# Blends ingredient coverage with cosine similarity so recipes that consume
+# more of what the user already has rank higher, reducing household food waste.
+COVERAGE_WEIGHT = 0.5
+
+
+def _parse_ingredient_list(raw):
+    try:
+        parsed = ast.literal_eval(raw) if isinstance(raw, str) else raw
+    except (ValueError, SyntaxError):
+        return [str(raw).lower()] if raw else []
+    if isinstance(parsed, list):
+        return [str(x).lower() for x in parsed]
+    return [str(parsed).lower()]
+
+
+def _matched_count(user_ingredients_lower, recipe_blob):
+    return sum(1 for ing in user_ingredients_lower if ing and ing in recipe_blob)
+
+
+# -------------------------------
+# Step 4: Recommendation function
 # -------------------------------
 def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5):
     # 1. Point to the existing global dataframe (memory efficient)
-    filtered_df = df 
+    filtered_df = df
 
     # 2. Apply Dietary Filter
     if preference and preference != "None":
@@ -60,7 +84,7 @@ def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5):
     # 4. Return early if no matches
     if filtered_df.empty:
         return []
-    
+
     # 5. Prepare the user's search query
     query = " ".join(ingredients_list[:10])
 
@@ -73,16 +97,38 @@ def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5):
     # 8. Compute cosine similarity between query and all recipes
     similarities = cosine_similarity(query_vec, filtered_matrix).flatten()
 
-    # 9. Get indices of top N most similar recipes (highest scores first)
-    actual_top_n = min(len(filtered_df), top_n)
-    top_indices = similarities.argsort()[-actual_top_n:][::-1]
+    # 9. Compute ingredient coverage per recipe (use-it-up score).
+    user_ings_lower = [i.strip().lower() for i in ingredients_list if i and i.strip()]
+    total_user = len(user_ings_lower)
+    if total_user:
+        recipe_blobs = filtered_df['ingredients'].apply(
+            lambda r: " ".join(_parse_ingredient_list(r))
+        )
+        matched_counts = recipe_blobs.apply(
+            lambda blob: _matched_count(user_ings_lower, blob)
+        ).to_numpy()
+        coverage = matched_counts / total_user
+    else:
+        matched_counts = np.zeros(len(filtered_df), dtype=int)
+        coverage = np.zeros(len(filtered_df))
 
-    # Return the top matching recipes from the filtered dataframe
-    return filtered_df.iloc[top_indices]
+    # 10. Blend similarity with coverage so recipes that finish more of the
+    #     user's ingredients are preferred over slightly-better text matches.
+    final_scores = (1 - COVERAGE_WEIGHT) * similarities + COVERAGE_WEIGHT * coverage
+
+    # 11. Get indices of top N highest blended scores
+    actual_top_n = min(len(filtered_df), top_n)
+    top_indices = final_scores.argsort()[-actual_top_n:][::-1]
+
+    results = filtered_df.iloc[top_indices].copy()
+    results['matched_count'] = matched_counts[top_indices]
+    results['total_user_ingredients'] = total_user
+    results['coverage'] = coverage[top_indices]
+    return results
 
 
 # -------------------------------
-# Step 4: Test locally
+# Step 5: Test locally
 # -------------------------------
 if __name__ == "__main__":
     user_ingredients = ["chicken", "garlic", "butter"]
@@ -96,7 +142,9 @@ if __name__ == "__main__":
         print("No recipes found.")
     else:
         for i, (_, row) in enumerate(results.iterrows(), 1):
-            print(f"{i}. {row['recipe_title']}")
+            matched = int(row.get('matched_count', 0))
+            total = int(row.get('total_user_ingredients', len(user_ingredients)))
+            print(f"{i}. {row['recipe_title']}  (uses {matched}/{total} of your ingredients)")
             print(f"Ingredients: {row['ingredients']}")
             print(f"Steps: {row['directions']}")
             print("-" * 50)
