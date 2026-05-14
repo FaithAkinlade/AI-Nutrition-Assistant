@@ -3,10 +3,14 @@
 import ast
 import os
 import pickle
+import sys
 import numpy as np
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import perishability
 
 load_dotenv()
 
@@ -49,6 +53,9 @@ def filter_by_preference(df, preference):
 # Blends ingredient coverage with cosine similarity so recipes that consume
 # more of what the user already has rank higher, reducing household food waste.
 COVERAGE_WEIGHT = 0.5
+SIMILARITY_WEIGHT_WITH_PERISH = 0.2
+COVERAGE_WEIGHT_WITH_PERISH = 0.3
+PERISHABILITY_WEIGHT = 0.5
 
 
 def _parse_raw_ingredients(raw):
@@ -83,7 +90,7 @@ def _missing_ingredients(user_ingredients_lower, raw_ingredients):
 # -------------------------------
 # Step 4: Recommendation function
 # -------------------------------
-def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5):
+def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5, use_first=None):
     # 1. Point to the existing global dataframe (memory efficient)
     filtered_df = df
 
@@ -115,10 +122,10 @@ def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5):
     # 9. Compute ingredient coverage per recipe (use-it-up score).
     user_ings_lower = [i.strip().lower() for i in ingredients_list if i and i.strip()]
     total_user = len(user_ings_lower)
+    recipe_blobs = filtered_df['ingredients'].apply(
+        lambda r: " ".join(_parse_ingredient_list(r))
+    )
     if total_user:
-        recipe_blobs = filtered_df['ingredients'].apply(
-            lambda r: " ".join(_parse_ingredient_list(r))
-        )
         matched_counts = recipe_blobs.apply(
             lambda blob: _matched_count(user_ings_lower, blob)
         ).to_numpy()
@@ -127,9 +134,26 @@ def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5):
         matched_counts = np.zeros(len(filtered_df), dtype=int)
         coverage = np.zeros(len(filtered_df))
 
-    # 10. Blend similarity with coverage so recipes that finish more of the
-    #     user's ingredients are preferred over slightly-better text matches.
-    final_scores = (1 - COVERAGE_WEIGHT) * similarities + COVERAGE_WEIGHT * coverage
+    if use_first is None:
+        perish_items = perishability.suggest_use_first(ingredients_list)
+    else:
+        perish_items = [u for u in use_first if u and u.strip()]
+    perish_items_lower = [p.strip().lower() for p in perish_items]
+
+    if perish_items_lower:
+        perish_match = recipe_blobs.apply(
+            lambda blob: perishability.perishability_match_count(perish_items_lower, blob)
+        ).to_numpy()
+        perish_coverage = perish_match / len(perish_items_lower)
+        final_scores = (
+            SIMILARITY_WEIGHT_WITH_PERISH * similarities
+            + COVERAGE_WEIGHT_WITH_PERISH * coverage
+            + PERISHABILITY_WEIGHT * perish_coverage
+        )
+    else:
+        perish_match = np.zeros(len(filtered_df), dtype=int)
+        perish_coverage = np.zeros(len(filtered_df))
+        final_scores = (1 - COVERAGE_WEIGHT) * similarities + COVERAGE_WEIGHT * coverage
 
     # 11. Get indices of top N highest blended scores
     actual_top_n = min(len(filtered_df), top_n)
@@ -139,6 +163,10 @@ def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5):
     results['matched_count'] = matched_counts[top_indices]
     results['total_user_ingredients'] = total_user
     results['coverage'] = coverage[top_indices]
+    results['perish_matched'] = perish_match[top_indices]
+    results['perish_total'] = len(perish_items_lower)
+    results['perish_coverage'] = perish_coverage[top_indices]
+    results['use_first_items'] = [list(perish_items)] * len(results)
     results['missing_ingredients'] = results['ingredients'].apply(
         lambda r: _missing_ingredients(user_ings_lower, r)
     )
@@ -163,7 +191,11 @@ if __name__ == "__main__":
             matched = int(row.get('matched_count', 0))
             total = int(row.get('total_user_ingredients', len(user_ingredients)))
             missing = row.get('missing_ingredients', [])
+            pm = int(row.get('perish_matched', 0))
+            pt = int(row.get('perish_total', 0))
             print(f"{i}. {row['recipe_title']}  (uses {matched}/{total} of your ingredients)")
+            if pt:
+                print(f"   Use-first: consumes {pm}/{pt} perishables")
             print(f"Ingredients: {row['ingredients']}")
             if missing:
                 print(f"You'd need: {', '.join(missing)}")
