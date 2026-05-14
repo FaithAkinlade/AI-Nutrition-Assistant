@@ -21,6 +21,7 @@ if model_path not in sys.path:
 # --- 2. IMPORT THE MODEL WITH ERROR HANDLING ---
 try:
     from recommend import recommend_recipes
+    import perishability
 except KeyError as e:
     st.error(f"Model Error: Missing Environment Variable {e}")
     st.stop()
@@ -42,6 +43,8 @@ if "page" not in st.session_state:
     st.session_state.page = 0
 if "last_tastes" not in st.session_state:
     st.session_state.last_tastes = []
+if "last_use_first" not in st.session_state:
+    st.session_state.last_use_first = []
 
 has_results = st.session_state.searched and st.session_state.results is not None
 
@@ -74,6 +77,27 @@ if not has_results:
     with col_center:
         ingredients_input = st.text_input("Ingredients (comma-separated)", placeholder="e.g. chicken, garlic, onion", key="ingredients_center")
 
+        parsed_ings_center = [i.strip() for i in ingredients_input.split(",") if i.strip()]
+        annotated_center = perishability.annotate(parsed_ings_center)
+        auto_use_first = [a["ingredient"] for a in annotated_center if a["tier"] in ("highly_perishable", "perishable")]
+
+        if parsed_ings_center:
+            chips = []
+            for a in annotated_center:
+                tier = a["tier"]
+                color_map = {
+                    "highly_perishable": "#c0392b",
+                    "perishable": "#d68910",
+                    "moderate": "#b9770e",
+                    "pantry_stable": "#27ae60",
+                }
+                color = color_map.get(tier, "#7f8c8d")
+                lbl = a["label"] or "Unknown shelf life"
+                chips.append(
+                    f'<span style="background:{color}; color:#fff; padding:3px 10px; border-radius:999px; font-size:0.8rem; margin:2px 4px 2px 0; display:inline-block;">{a["ingredient"]} · {lbl}</span>'
+                )
+            st.markdown("<div style='margin:0.25rem 0 0.5rem 0;'>" + "".join(chips) + "</div>", unsafe_allow_html=True)
+
         sub_col1, sub_col2, sub_col3 = st.columns(3)
         with sub_col1:
             preference = st.selectbox("Dietary preference", options=["None", "vegan", "vegetarian", "gluten_free", "dairy_free"], key="pref_center")
@@ -83,15 +107,23 @@ if not has_results:
             st.markdown("**Tastes**")
             tastes_selected = st.multiselect("Choose up to 2", ["sweet", "sour", "umami", "bitter", "spicy", "savory"], max_selections=2, key="tastes_multi_center")
 
+        use_first_selected = st.multiselect(
+            "Use first (perishable / expiring soon)",
+            options=parsed_ings_center,
+            default=[i for i in auto_use_first if i in parsed_ings_center],
+            key="use_first_center",
+            help="These ingredients get a ranking boost so recipes that consume them are surfaced first."
+        )
+
         if st.button("Get Recommendations", type="primary", use_container_width=True):
             if not ingredients_input.strip():
                 st.warning("Please enter at least one ingredient.")
             else:
-                ingredients_list = [i.strip() for i in ingredients_input.split(",") if i.strip()]
+                ingredients_list = parsed_ings_center
                 pref = None if preference == "None" else preference
                 with st.spinner("Finding recipes..."):
-                    results = recommend_recipes(ingredients_list, pref, tastes_selected, top_n)
-                
+                    results = recommend_recipes(ingredients_list, pref, tastes_selected, top_n, use_first=use_first_selected)
+
                 if results is None or (hasattr(results, 'empty') and results.empty):
                     st.info("No recipes found. Try different ingredients.")
                 else:
@@ -102,6 +134,7 @@ if not has_results:
                     st.session_state.last_pref = preference
                     st.session_state.last_topn = top_n
                     st.session_state.last_tastes = tastes_selected
+                    st.session_state.last_use_first = use_first_selected
                     st.rerun()
 
 else:
@@ -150,24 +183,43 @@ else:
             label_visibility="collapsed"
         )
     with top_col5:
-        if st.button("Search", type="primary", use_container_width=True):
-            if not ingredients_input.strip():
-                st.warning("Please enter ingredients.")
-            else:
-                ingredients_list = [i.strip() for i in ingredients_input.split(",") if i.strip()]
-                pref = None if preference == "None" else preference
-                
-                with st.spinner("Updating..."):
-                    results = recommend_recipes(ingredients_list, pref, tastes_selected, top_n)
-                
-                if results is not None:
-                    st.session_state.results = results
-                    st.session_state.page = 0
-                    st.session_state.last_ingredients = ingredients_input
-                    st.session_state.last_pref = preference
-                    st.session_state.last_topn = top_n
-                    st.session_state.last_tastes = tastes_selected # Save the new selection
-                    st.rerun()
+        do_search = st.button("Search", type="primary", use_container_width=True)
+
+    parsed_ings_top = [i.strip() for i in ingredients_input.split(",") if i.strip()]
+    auto_top = [
+        a["ingredient"]
+        for a in perishability.annotate(parsed_ings_top)
+        if a["tier"] in ("highly_perishable", "perishable")
+    ]
+    saved_use_first = [u for u in st.session_state.get("last_use_first", []) if u in parsed_ings_top]
+    use_first_default = saved_use_first if saved_use_first else [a for a in auto_top if a in parsed_ings_top]
+    use_first_selected = st.multiselect(
+        "Use first",
+        options=parsed_ings_top,
+        default=use_first_default,
+        key="use_first_top",
+        help="Ingredients to prioritize (perishable / expiring soon)."
+    )
+
+    if do_search:
+        if not ingredients_input.strip():
+            st.warning("Please enter ingredients.")
+        else:
+            ingredients_list = parsed_ings_top
+            pref = None if preference == "None" else preference
+
+            with st.spinner("Updating..."):
+                results = recommend_recipes(ingredients_list, pref, tastes_selected, top_n, use_first=use_first_selected)
+
+            if results is not None:
+                st.session_state.results = results
+                st.session_state.page = 0
+                st.session_state.last_ingredients = ingredients_input
+                st.session_state.last_pref = preference
+                st.session_state.last_topn = top_n
+                st.session_state.last_tastes = tastes_selected
+                st.session_state.last_use_first = use_first_selected
+                st.rerun()
 
     st.markdown("<hr style='border-color:#c4a97d; margin:0.5rem 0 1rem 0;'>", unsafe_allow_html=True)
 
@@ -186,25 +238,58 @@ else:
                 p = ast.literal_eval(data)
                 return "".join(f"<li>{x}</li>" for x in p) if isinstance(p, list) else f"<li>{data}</li>"
             except: return f"<li>{data}</li>"
-        return title, fmt(row["ingredients"]), fmt(row["directions"])
+        matched = int(row["matched_count"]) if "matched_count" in row else 0
+        total = int(row["total_user_ingredients"]) if "total_user_ingredients" in row else 0
+        badge = f"Uses {matched} of your {total} ingredients" if total else ""
+        pm = int(row["perish_matched"]) if "perish_matched" in row else 0
+        pt = int(row["perish_total"]) if "perish_total" in row else 0
+        if pt:
+            perish_badge = f"Consumes {pm} of {pt} use-first items"
+        else:
+            perish_badge = ""
+        missing = row["missing_ingredients"] if "missing_ingredients" in row else []
+        if not isinstance(missing, list):
+            missing = []
+        missing_html = "".join(f"<li>{m}</li>" for m in missing)
+        return title, fmt(row["ingredients"]), fmt(row["directions"]), badge, missing_html, perish_badge
 
-    def build_page_html(title, ing_html, dir_html, page_num, side):
+    def build_page_html(title, ing_html, dir_html, page_num, side, badge="", missing_html="", perish_badge=""):
         radius = "12px 0 0 12px" if side == "left" else "0 12px 12px 0"
         border = "border-right: 1px solid #8B6914;" if side == "left" else ""
         grad = "to left" if side == "left" else "to right"
         spine = f'<div style="position:absolute; {"right" if side=="left" else "left"}:0; top:0; bottom:0; width:18px; background:linear-gradient({grad}, #8B6914, #b8956a, transparent);"></div>'
+        badge_html = (
+            f'<div style="text-align:center; margin: 0 auto 0.5rem auto; display:inline-block; background:#6B4F12; color:#f5e6c8; padding:4px 12px; border-radius:999px; font-size:0.85rem; font-weight:bold;">{badge}</div>'
+            if badge else ""
+        )
+        perish_html = (
+            f'<div style="text-align:center; margin: 0 auto 0.5rem auto; display:inline-block; background:#c0392b; color:#fff; padding:4px 12px; border-radius:999px; font-size:0.85rem; font-weight:bold;">{perish_badge}</div>'
+            if perish_badge else ""
+        )
+        badge_wrap = (
+            f'<div style="text-align:center;">{badge_html}{("&nbsp;" + perish_html) if perish_html else ""}</div>'
+            if (badge or perish_html) else ""
+        )
+        missing_block = (
+            f'<div style="background:#fff8e7; border:1px dashed #8B6914; border-radius:8px; padding:0.5rem 1rem; margin: 0.5rem 0 1rem 0;">'
+            f'<h4 style="color:#8B0000; margin:0 0 0.25rem 0;">You\'d need to buy</h4>'
+            f'<ul style="margin:0; padding-left:1.25rem; color:#5B3A0A;">{missing_html}</ul></div>'
+            if missing_html else ""
+        )
         return f'''<div style="flex:1; background: linear-gradient(135deg, #d2b48c 0%, #f5e6c8 50%, #d2b48c 100%); border: 3px solid #8B6914; {border} border-radius: {radius}; padding: 2rem; position: relative; min-height: 600px; overflow: auto; font-family: Georgia, serif;">
             {spine}<h2 style="text-align:center; color:#5B3A0A; border-bottom:2px solid #8B6914;">{title}</h2>
+            {badge_wrap}
+            {missing_block}
             <h4 style="color:#6B4F12;">Ingredients</h4><ul>{ing_html}</ul>
             <h4 style="color:#6B4F12;">Instructions</h4><ol>{dir_html}</ol>
             <p style="text-align:center; color:#8B6914; font-style:italic;">— {page_num} —</p></div>'''
 
-    l_title, l_ing, l_dir = parse_recipe(left_idx)
-    left_page = build_page_html(l_title, l_ing, l_dir, left_idx + 1, "left")
-    
+    l_title, l_ing, l_dir, l_badge, l_missing, l_perish = parse_recipe(left_idx)
+    left_page = build_page_html(l_title, l_ing, l_dir, left_idx + 1, "left", l_badge, l_missing, l_perish)
+
     if right_idx < total_recipes:
-        r_title, r_ing, r_dir = parse_recipe(right_idx)
-        right_page = build_page_html(r_title, r_ing, r_dir, right_idx + 1, "right")
+        r_title, r_ing, r_dir, r_badge, r_missing, r_perish = parse_recipe(right_idx)
+        right_page = build_page_html(r_title, r_ing, r_dir, right_idx + 1, "right", r_badge, r_missing, r_perish)
     else:
         right_page = '<div style="flex:1; background:#e6d2a8; border:3px solid #8B6914; border-radius:0 12px 12px 0; min-height:600px; display:flex; align-items:center; justify-content:center;">End of recipes</div>'
 
