@@ -1,0 +1,196 @@
+S.N.A.C.C. - Smart Nutrition Assistant Companion and Curator
+How to Use This Project
+
+This file explains how to install, run, and validate the project so that the
+results and demonstrations described in the project report can be reproduced.
+
+
+SECTION A: REQUIREMENTS
+
+1. Python 3.10 or newer installed on your machine
+2. Git installed
+3. About 1 GB of free disk space for the virtual environment and pickled
+   model artifacts
+
+
+SECTION B: SETUP
+
+1. Clone the repository:
+   git clone https://github.com/FaithAkinlade/AI-Nutrition-Assistant.git
+
+2. Move into the project folder:
+   cd AI-Nutrition-Assistant
+
+3. Create a Python virtual environment:
+   python -m venv .venv
+
+4. Activate the virtual environment.
+   On macOS or Linux:
+   source .venv/bin/activate
+   On Windows:
+   .venv\Scripts\activate
+
+5. Install all required Python packages:
+   pip install -r requirements.txt
+
+6. Create the .env file at the project root with the following two lines.
+   Replace the path with your actual absolute path to the project folder.
+   MODEL_DIR=/absolute/path/to/AI-Nutrition-Assistant/AI_nutritionist/model
+   DATA_DIR=/absolute/path/to/AI-Nutrition-Assistant/AI_nutritionist/data
+
+   An example file (.env.example) is included in the repository for reference.
+
+7. Confirm the model artifacts are in place. The model folder should already
+   contain three files:
+   AI_nutritionist/model/recipes.pkl
+   AI_nutritionist/model/tfidf_vectorizer.pkl
+   AI_nutritionist/model/nn_model.pkl
+   These are tracked in the repository and do not need to be regenerated.
+
+
+SECTION C: RUN THE AUTOMATED TESTS
+
+1. From the project root with the virtual environment active, run:
+   python -m pytest AI_nutritionist/tests/ -v
+
+2. The expected result is 49 tests passing in roughly 25 seconds.
+   The three test files cover:
+   test_api_inputs.py - FastAPI backend contract
+   test_coverage.py - pantry coverage scoring and missing ingredients
+   test_perishability.py - shelf-life classifier and use-first ranking
+
+3. If a test fails, confirm that the virtual environment is active and that
+   the .env file points to the correct absolute paths.
+
+
+SECTION D: LAUNCH THE STREAMLIT APPLICATION
+
+1. With the virtual environment still active, run:
+   streamlit run AI_nutritionist/frontend/streamlit_app.py
+
+2. A browser tab will open automatically at http://localhost:8501
+
+3. To stop the app, press Ctrl+C in the terminal.
+
+
+SECTION E: VALIDATE THE DEMONSTRATIONS FROM THE REPORT
+
+The following scenarios reproduce the live demonstration described in the
+project report. Each one exercises a specific feature.
+
+1. Baseline similarity ranking
+   Enter ingredients: chicken, garlic, onion
+   Leave dietary, tastes, and use-first empty
+   Click Get Recommendations
+   Expected: top-N chicken-based recipes returned
+
+2. Hard dietary constraint
+   Enter ingredients: chicken, garlic, onion
+   Set dietary preference to vegan
+   Click Get Recommendations
+   Expected: zero chicken dishes in the results
+
+3. Pantry coverage ranking
+   Enter ingredients: chicken, garlic, butter, pasta, parmesan
+   Click Get Recommendations
+   Expected: each recipe card shows a brown badge reading
+   "Uses X of your Y ingredients"
+
+4. Perishability auto-detection
+   Enter ingredients: shrimp, garlic, pasta, olive oil, salt
+   Expected: color-coded chips appear under the input. shrimp is red,
+   garlic is brown, the rest are green. The "Use first" multiselect
+   auto-populates with shrimp.
+   Click Get Recommendations
+   Expected: a shrimp-based recipe is the top result, with a red
+   "Use first" badge showing 1 of 1
+
+5. Manual use-first override
+   With the same ingredients as scenario 4, uncheck shrimp from the
+   "Use first" box and check garlic instead
+   Click Search
+   Expected: ranking shifts toward garlic-using recipes
+
+6. Missing ingredients surfacing
+   Enter ingredients: chicken, garlic, butter
+   Click Get Recommendations
+   Expected: each recipe card shows a "You'd need to buy" box listing
+   the ingredients the user does not currently have
+
+7. Graceful empty result
+   The defensive empty-result path is exercised by the unit tests and
+   does not need to be demonstrated through the UI.
+
+
+SECTION F: RUN THE FASTAPI BACKEND
+
+1. Open a new terminal and activate the virtual environment again
+
+2. Move into the backend folder:
+   cd AI_nutritionist/backend
+
+3. Start the backend:
+   uvicorn app:app --reload
+
+4. The interactive API documentation is available at:
+   http://localhost:8000/docs
+
+5. Example API request directly in a browser:
+   http://localhost:8000/recommend?ingredients=chicken,garlic,butter&use_first=chicken&top_n=3
+
+6. The JSON response includes the recipe title, ingredients, directions,
+   coverage counts, missing ingredients, and use-first counts for each
+   returned recipe.
+
+
+SECTION G: PROJECT FILE MAP
+
+1. AI_nutritionist/model/preprocess.py
+   Data cleaning, normalization, and feature construction
+
+2. AI_nutritionist/model/train.py
+   TF-IDF vectorizer fitting and Nearest Neighbors model training
+
+3. AI_nutritionist/model/recommend.py
+   Inference pipeline including dietary filter, taste filter, similarity
+   scoring, pantry coverage, and perishability re-ranking
+
+4. AI_nutritionist/model/perishability.py
+   Four-tier shelf-life classifier and use-first suggestion helpers
+
+5. AI_nutritionist/backend/app.py
+   FastAPI endpoint exposing the recommendation engine as JSON
+
+6. AI_nutritionist/frontend/streamlit_app.py
+   Streamlit user interface
+
+7. AI_nutritionist/tests/
+   Test suite covering API contract, coverage logic, and perishability
+   classification
+
+8. image_preprocessing_file.py
+   Original integrated preprocessing pipeline reference
+
+9. remove_duplicates.py
+   Standalone deduplication utility
+
+
+SECTION H: TROUBLESHOOTING
+
+1. If recommend.py reports a missing environment variable, the .env file is
+   not loaded correctly. Confirm the file exists at the project root with
+   both MODEL_DIR and DATA_DIR set to absolute paths.
+
+2. If Streamlit cannot find the recommend module, confirm that MODEL_DIR
+   points to the AI_nutritionist/model folder containing recommend.py.
+
+3. If pip install fails on a package, upgrade pip and retry:
+   pip install --upgrade pip
+   pip install -r requirements.txt
+
+4. If the browser does not open automatically when launching Streamlit,
+   manually navigate to the URL printed in the terminal, usually
+   http://localhost:8501
+
+
+END OF FILE
