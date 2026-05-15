@@ -33,12 +33,10 @@ SECTION B: SETUP
 5. Install all required Python packages:
    pip install -r requirements.txt
 
-6. Create the .env file at the project root with the following two lines.
-   Replace the path with your actual absolute path to the project folder.
-   MODEL_DIR=/absolute/path/to/AI-Nutrition-Assistant/AI_nutritionist/model
-   DATA_DIR=/absolute/path/to/AI-Nutrition-Assistant/AI_nutritionist/data
-
-   An example file (.env.example) is included in the repository for reference.
+6. The project works out of the box without any environment configuration.
+   Default model and data paths are resolved automatically. A .env file is
+   only needed if you want to point the model loader at a non-standard
+   location. An .env.example template is included for that case.
 
 7. Confirm the model artifacts are in place. The model folder should already
    contain three files:
