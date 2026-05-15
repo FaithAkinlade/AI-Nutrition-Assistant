@@ -17,7 +17,7 @@ load_dotenv()
 # -------------------------------
 # Step 1: Load saved files
 # -------------------------------
-MODEL_DIR = os.environ["MODEL_DIR"]
+MODEL_DIR = os.environ.get("MODEL_DIR") or os.path.dirname(os.path.abspath(__file__))
 
 model_path = os.path.join(MODEL_DIR, 'nn_model.pkl')   # not used but kept
 vectorizer_path = os.path.join(MODEL_DIR, 'tfidf_vectorizer.pkl')
