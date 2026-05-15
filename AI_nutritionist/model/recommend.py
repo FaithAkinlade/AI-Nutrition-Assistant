@@ -99,7 +99,7 @@ def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5, u
         filtered_df = filter_by_preference(filtered_df, preference)
 
     # 3. Apply Taste Filter (Directly on the 'tastes' column)
-    if tastes:
+    if tastes and 'tastes' in filtered_df.columns:
         for taste in tastes:
             filtered_df = filtered_df[filtered_df['tastes'].str.contains(taste, case=False, na=False)]
 
@@ -155,21 +155,23 @@ def recommend_recipes(ingredients_list, preference=None, tastes=None, top_n=5, u
         perish_coverage = np.zeros(len(filtered_df))
         final_scores = (1 - COVERAGE_WEIGHT) * similarities + COVERAGE_WEIGHT * coverage
 
-    # 11. Get indices of top N highest blended scores
-    actual_top_n = min(len(filtered_df), top_n)
-    top_indices = final_scores.argsort()[-actual_top_n:][::-1]
+    # 11. Get indices of top N highest blended scores (over-fetch to allow dedup)
+    over_fetch = min(len(filtered_df), max(top_n * 10, top_n + 20))
+    candidate_indices = final_scores.argsort()[-over_fetch:][::-1]
 
-    results = filtered_df.iloc[top_indices].copy()
-    results['matched_count'] = matched_counts[top_indices]
-    results['total_user_ingredients'] = total_user
-    results['coverage'] = coverage[top_indices]
-    results['perish_matched'] = perish_match[top_indices]
-    results['perish_total'] = len(perish_items_lower)
-    results['perish_coverage'] = perish_coverage[top_indices]
-    results['use_first_items'] = [list(perish_items)] * len(results)
-    results['missing_ingredients'] = results['ingredients'].apply(
+    candidates = filtered_df.iloc[candidate_indices].copy()
+    candidates['matched_count'] = matched_counts[candidate_indices]
+    candidates['total_user_ingredients'] = total_user
+    candidates['coverage'] = coverage[candidate_indices]
+    candidates['perish_matched'] = perish_match[candidate_indices]
+    candidates['perish_total'] = len(perish_items_lower)
+    candidates['perish_coverage'] = perish_coverage[candidate_indices]
+    candidates['use_first_items'] = [list(perish_items)] * len(candidates)
+    candidates['missing_ingredients'] = candidates['ingredients'].apply(
         lambda r: _missing_ingredients(user_ings_lower, r)
     )
+
+    results = candidates.drop_duplicates(subset=['recipe_title']).head(top_n)
     return results
 
 
